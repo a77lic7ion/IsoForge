@@ -2,22 +2,24 @@
 
 IsoForge is a specialized, web-based tool designed to streamline the creation of 2D isometric game assets for the **Godot game engine**. It leverages the power of generative AI to produce high-quality sprites from text prompts and exports them as engine-ready resources, bridging the gap between creative ideation and practical game development.
 
-The core value proposition is its "ready-to-use" export feature. IsoForge doesn't just generate PNG images; it automatically creates the necessary Godot-specific metadata files (`.tres` and `.import`), allowing developers to drag and drop the exported `.zip` directly into a Godot project for immediate use without manual import configuration.
+The core value proposition is its "ready-to-use" export feature. IsoForge doesn't just generate PNG images; it automatically creates the necessary Godot-specific metadata files (`.tscn` and `.import`), allowing developers to drag and drop the exported `.zip` directly into a Godot project for immediate use without manual import configuration.
 
 ![IsoForge Screenshot](https://storage.googleapis.com/aistudio-hosting/readme_assets/isoforge/isoforge-screenshot.png)
 
 ## ✨ Core Features
 
--   **AI Asset Generation**: Utilizes Google's powerful `gemini-2.5-flash-image` model to generate high-quality, transparent PNG sprites from simple text descriptions.
+-   **AI Asset Generation**: Utilizes Google's powerful `gemini-2.5-flash-image` model or a local ComfyUI instance to generate high-quality, transparent PNG sprites from simple text descriptions.
+-   **Advanced Generation Controls**:
+    -   Specify asset types (sprite vs. background), artistic styles (vector, cartoon, HD), and precise camera angles (8 isometric views, top-down, side-scrolling).
 -   **Iterative Refinement**:
     -   **Inpainting**: An integrated canvas editor allows you to paint a mask over any part of an asset and regenerate just that area with a new prompt.
-    -   **Regenerate & Edit**: Easily get variations of an asset or tweak your initial prompt to refine the output.
--   **Godot-Ready Exports**: The "Export as .zip" feature packages the PNG image with its corresponding `.tres` (Texture2D resource) and `.import` (Godot import settings) files.
--   **Asset Management Workflow**:
-    -   **Session**: A temporary workspace where all new and modified assets are held.
-    -   **Library**: A permanent, curated collection for your best assets.
-    -   **Full Persistence**: Your entire session and library are automatically saved to your browser's local storage.
--   **Interactive UI**: A modern, responsive interface with full-screen previews, asset management tools, and a seamless editing experience.
+    -   **Regenerate & Edit**: Easily get variations of an asset or tweak your initial settings to refine the output.
+-   **Godot-Ready Exports**: The "Export as .zip" feature packages the PNG image with its corresponding `.tscn` (Scene file) and `.import` (Godot import settings) files.
+-   **Project-Based Workflow**:
+    -   **Projects**: Organize your assets into separate projects for different games or collections.
+    -   **Session Scratchpad**: A global "session" area acts as a temporary workspace for all newly generated assets.
+    -   **Project Library**: Save your best assets from the session directly into the active project's library.
+    -   **Full Persistence**: All projects, libraries, and your session are automatically saved to your browser's **IndexedDB**, providing a large, persistent storage space.
 
 ## 🛠️ Technology Stack
 
@@ -26,10 +28,11 @@ The core value proposition is its "ready-to-use" export feature. IsoForge doesn'
     -   **TypeScript**: For static typing and a more robust codebase.
     -   **Tailwind CSS**: For rapid, utility-first styling.
 -   **Generative AI**:
-    -   **Google Gemini API**: The core engine for image generation and inpainting.
+    -   **Google Gemini API**: The core cloud engine for image generation and inpainting.
+    -   **ComfyUI**: Support for a self-hosted local backend for ultimate flexibility.
 -   **Browser APIs**:
     -   **Canvas API**: Powers the interactive inpainting editor.
-    -   **Local Storage**: For client-side persistence of all user assets.
+    -   **IndexedDB**: For robust, large-scale client-side persistence of all user projects and assets.
 -   **Libraries**:
     -   **JSZip**: Used for creating the `.zip` archives for Godot exports.
 
@@ -81,6 +84,7 @@ The codebase is organized to separate concerns, making it modular and maintainab
 │   │   └── useCanvasDraw.ts
 │   ├── services/         # Logic for APIs and browser features
 │   │   ├── geminiService.ts
+│   │   ├── comfyuiService.ts
 │   │   ├── godotExportService.ts
 │   │   └── storageService.ts
 │   ├── types.ts          # TypeScript type definitions
@@ -94,5 +98,6 @@ The codebase is organized to separate concerns, making it modular and maintainab
 ### Key Services Breakdown
 
 -   `geminiService.ts`: Handles all communication with the Google Gemini API for both generating new images and performing inpainting edits.
--   `godotExportService.ts`: Contains the logic for generating the Godot-specific `.tres` and `.import` file content, creating `.zip` archives, and triggering file downloads.
--   `storageService.ts`: Manages saving and loading the user's "Session" and "Library" assets to and from the browser's local storage.
+-   `comfyuiService.ts`: Integrates with a local ComfyUI instance via its WebSocket and HTTP API for generation and inpainting.
+-   `godotExportService.ts`: Contains the logic for generating the Godot-specific `.tscn` and `.import` file content, creating `.zip` archives, and triggering file downloads.
+-   `storageService.ts`: Manages saving and loading all user projects and the global session to and from the browser's **IndexedDB**.
