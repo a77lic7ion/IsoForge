@@ -1,0 +1,5 @@
+{
+  "name": "IsoForge",
+  "description": "A web-based tool to streamline the creation of 2D isometric game assets for the Godot game engine using generative AI. Generate assets from text prompts and export them as ready-to-use Godot resources.",
+  "requestFramePermissions": []
+}
