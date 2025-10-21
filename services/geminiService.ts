@@ -66,6 +66,38 @@ const buildPromptFromOptions = (options: GenerationOptions): string => {
     return parts.filter(p => p).join(', ');
 };
 
+const handleApiResponse = (response: any, action: string): string => {
+    const candidate = response.candidates?.[0];
+
+    if (candidate?.finishReason && candidate.finishReason !== 'STOP') {
+        let errorMessage = `Image ${action} failed. Reason: ${candidate.finishReason}.`;
+        switch (candidate.finishReason) {
+            case 'SAFETY':
+                errorMessage = `Image ${action} was blocked for safety reasons. Please adjust your prompt.`;
+                break;
+            case 'RECITATION':
+                 errorMessage = `Image ${action} was blocked due to potential recitation. Please try a different prompt.`;
+                break;
+            case 'OTHER':
+                 errorMessage = `Image ${action} failed due to an unspecified reason from the provider. Please try again.`;
+                break;
+        }
+        throw new Error(errorMessage);
+    }
+    
+    if (candidate && candidate.content && candidate.content.parts) {
+      for (const part of candidate.content.parts) {
+        if (part.inlineData) {
+          return part.inlineData.data;
+        }
+      }
+    }
+    
+    console.error(`Image ${action} failed. Full response:`, JSON.stringify(response, null, 2));
+    throw new Error(`No image data found in the response. The model may have returned an empty result.`);
+}
+
+
 export async function generateImage(options: GenerationOptions, apiKey: string): Promise<string> {
   if (!apiKey) {
     throw new Error("Gemini API Key is not configured. Please add it in Settings.");
@@ -83,24 +115,7 @@ export async function generateImage(options: GenerationOptions, apiKey: string):
         responseModalities: [Modality.IMAGE],
       },
     });
-
-    const candidate = response.candidates?.[0];
-
-    if (candidate?.finishReason === 'SAFETY') {
-      throw new Error("Image generation was blocked due to safety concerns. Please try a different prompt.");
-    }
-    
-    if (candidate && candidate.content && candidate.content.parts) {
-      for (const part of candidate.content.parts) {
-        if (part.inlineData) {
-          return part.inlineData.data;
-        }
-      }
-    }
-    
-    console.error("Image generation failed. Full response:", JSON.stringify(response, null, 2));
-    throw new Error("No image data found in the response. The model may have returned an empty result.");
-
+    return handleApiResponse(response, "generation");
   } catch (error) {
     console.error("Error generating image:", error);
     if (error instanceof Error) {
@@ -146,22 +161,7 @@ export async function inpaintImage(
       },
     });
     
-    const candidate = response.candidates?.[0];
-
-    if (candidate?.finishReason === 'SAFETY') {
-      throw new Error("Inpainting was blocked due to safety concerns. Please try a different prompt.");
-    }
-
-    if (candidate && candidate.content && candidate.content.parts) {
-      for (const part of candidate.content.parts) {
-        if (part.inlineData) {
-          return part.inlineData.data;
-        }
-      }
-    }
-    
-    console.error("Inpainting failed. Full response:", JSON.stringify(response, null, 2));
-    throw new Error("No inpainted image data found in the response. The model may have returned an empty result.");
+    return handleApiResponse(response, "inpainting");
   } catch (error) {
     console.error("Error inpainting image:", error);
     if (error instanceof Error) {

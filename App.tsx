@@ -43,26 +43,33 @@ const App: React.FC = () => {
 
     const activeProject = projects.find(p => p.id === activeProjectId) || null;
     const libraryAssets = activeProject?.assets || [];
+    const [isInitialLoad, setIsInitialLoad] = useState(true);
 
     // --- Data Persistence ---
     useEffect(() => {
-        const { projects, activeProjectId, sessionAssets } = storage.loadProjects();
-        setProjects(projects);
-        setActiveProjectId(activeProjectId);
-        setSessionAssets(sessionAssets);
+        const loadInitialData = async () => {
+            const { projects, activeProjectId, sessionAssets } = await storage.loadProjects();
+            setProjects(projects);
+            setActiveProjectId(activeProjectId);
+            setSessionAssets(sessionAssets);
 
-        if (projects.length === 0) {
-            const newProject: Project = { id: Date.now().toString(), name: "My First Project", assets: [] };
-            setProjects([newProject]);
-            setActiveProjectId(newProject.id);
-        } else if (!activeProjectId && projects.length > 0) {
-            setActiveProjectId(projects[0].id);
-        }
+            if (projects.length === 0) {
+                const newProject: Project = { id: Date.now().toString(), name: "My First Project", assets: [] };
+                setProjects([newProject]);
+                setActiveProjectId(newProject.id);
+            } else if (!activeProjectId && projects.length > 0) {
+                setActiveProjectId(projects[0].id);
+            }
+            setIsInitialLoad(false);
+        };
+        loadInitialData();
     }, []);
 
     useEffect(() => {
-        storage.saveProjects({ projects, activeProjectId, sessionAssets });
-    }, [projects, activeProjectId, sessionAssets]);
+        if (!isInitialLoad) {
+            storage.saveProjects({ projects, activeProjectId, sessionAssets });
+        }
+    }, [projects, activeProjectId, sessionAssets, isInitialLoad]);
     
     // --- Core Actions ---
     const handleGenerate = async (options: GenerationOptions) => {
