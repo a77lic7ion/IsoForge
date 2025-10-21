@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { Asset, GenerationOptions, Settings, Project } from './types';
+import type { Asset, GenerationOptions, Settings, Project, ViewOption } from './types';
 import { Header } from './components/Header';
 import { PromptForm } from './components/PromptForm';
 import { AssetGrid } from './components/AssetGrid';
@@ -22,6 +22,7 @@ const App: React.FC = () => {
     // App State
     const [settings, setSettings] = useState<Settings>(settingsService.loadSettings());
     const [isLoading, setIsLoading] = useState(false);
+    const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 });
     const [error, setError] = useState<string | null>(null);
     const [sessionAssets, setSessionAssets] = useState<Asset[]>([]);
     
@@ -38,6 +39,7 @@ const App: React.FC = () => {
     const [inpaintAsset, setInpaintAsset] = useState<Asset | null>(null);
     const [editAsset, setEditAsset] = useState<Asset | null>(null);
     const [isSpriteSheetEditorOpen, setSpriteSheetEditorOpen] = useState(false);
+    const [spriteSheetEditorAssets, setSpriteSheetEditorAssets] = useState<Asset[]>([]);
     const [generationPreview, setGenerationPreview] = useState<Asset | null>(null);
     const [deleteConfirm, setDeleteConfirm] = useState<{ assets?: string[], project?: Project } | null>(null);
 
@@ -72,32 +74,77 @@ const App: React.FC = () => {
     }, [projects, activeProjectId, sessionAssets, isInitialLoad]);
     
     // --- Core Actions ---
-    const handleGenerate = async (options: GenerationOptions) => {
+    const generateSet = async (baseOptions: GenerationOptions): Promise<Asset[]> => {
         setIsLoading(true);
         setError(null);
-        setEditAsset(null); // Close edit form if open
+        setGenerationProgress({ current: 0, total: 8 });
+        
         try {
             const apiKey = settings.provider === 'gemini' ? settings.geminiApiKey : settings.comfyuiAddress;
             if (!apiKey) {
                 setSettingsOpen(true);
                 throw new Error("API Key or Server Address is not configured. Please add it in Settings.");
             }
-            
             const generateFn = settings.provider === 'gemini' ? geminiService.generateImage : comfyuiService.generateImage;
-            const base64Data = await generateFn(options, apiKey);
-            
-            const newAsset: Asset = {
-                id: `asset-${Date.now()}`,
-                imageData: `data:image/png;base64,${base64Data}`,
-                prompt: options.prompt,
-                options,
-                createdAt: Date.now(),
-            };
-            setGenerationPreview(newAsset);
-        } catch (err: any) {
-            setError(err.message || 'An unknown error occurred.');
+
+            const isoViews: ViewOption[] = ['iso-n', 'iso-ne', 'iso-e', 'iso-se', 'iso-s', 'iso-sw', 'iso-w', 'iso-nw'];
+            const generationPromises = isoViews.map((view, index) => {
+                const newOptions = { ...baseOptions, genType: 'asset' as const, view };
+                return generateFn(newOptions, apiKey).then(base64Data => {
+                    setGenerationProgress(prev => ({ ...prev, current: prev.current + 1 }));
+                    return {
+                        id: `asset-${Date.now()}-${index}`,
+                        imageData: `data:image/png;base64,${base64Data}`,
+                        prompt: newOptions.prompt,
+                        options: newOptions,
+                        createdAt: Date.now(),
+                    };
+                });
+            });
+
+            return await Promise.all(generationPromises);
         } finally {
             setIsLoading(false);
+            setGenerationProgress({ current: 0, total: 0 });
+        }
+    };
+    
+    const handleGenerate = async (options: GenerationOptions) => {
+        if (options.genType === 'iso-set') {
+            try {
+                const newAssets = await generateSet(options);
+                setSpriteSheetEditorAssets(newAssets);
+                setSpriteSheetEditorOpen(true);
+            } catch (err: any) {
+                setError(err.message || 'Failed to generate isometric set.');
+            }
+        } else {
+             setIsLoading(true);
+            setError(null);
+            setEditAsset(null);
+            try {
+                const apiKey = settings.provider === 'gemini' ? settings.geminiApiKey : settings.comfyuiAddress;
+                if (!apiKey) {
+                    setSettingsOpen(true);
+                    throw new Error("API Key or Server Address is not configured. Please add it in Settings.");
+                }
+                
+                const generateFn = settings.provider === 'gemini' ? geminiService.generateImage : comfyuiService.generateImage;
+                const base64Data = await generateFn(options, apiKey);
+                
+                const newAsset: Asset = {
+                    id: `asset-${Date.now()}`,
+                    imageData: `data:image/png;base64,${base64Data}`,
+                    prompt: options.prompt,
+                    options,
+                    createdAt: Date.now(),
+                };
+                setGenerationPreview(newAsset);
+            } catch (err: any) {
+                setError(err.message || 'An unknown error occurred.');
+            } finally {
+                setIsLoading(false);
+            }
         }
     };
     
@@ -123,7 +170,6 @@ const App: React.FC = () => {
                 createdAt: Date.now(),
             };
             
-            // Replace old asset with new one
             setSessionAssets(prev => prev.map(a => a.id === inpaintAsset.id ? newAsset : a));
             if (activeProject) {
                 setProjects(prev => prev.map(p => p.id === activeProject.id ? { ...p, assets: p.assets.map(a => a.id === inpaintAsset.id ? newAsset : a) } : p));
@@ -134,6 +180,26 @@ const App: React.FC = () => {
             setError(err.message || 'An unknown error occurred.');
         } finally {
             setIsLoading(false);
+        }
+    };
+    
+    const handleCreateSpriteSheet = async () => {
+        if (selectedAssets.size === 1) {
+            const assetId = selectedAssets.values().next().value;
+            const baseAsset = [...sessionAssets, ...libraryAssets].find(a => a.id === assetId);
+            if (!baseAsset) return;
+            
+            try {
+                const newAssets = await generateSet(baseAsset.options);
+                setSpriteSheetEditorAssets(newAssets);
+                setSpriteSheetEditorOpen(true);
+            } catch (err: any) {
+                setError(err.message || 'Failed to generate full set for spritesheet.');
+            }
+        } else {
+            const assetsForEditor = [...sessionAssets, ...libraryAssets].filter(a => selectedAssets.has(a.id));
+            setSpriteSheetEditorAssets(assetsForEditor);
+            setSpriteSheetEditorOpen(true);
         }
     };
 
@@ -186,6 +252,10 @@ const App: React.FC = () => {
         exportToGodotProject(assetsToExport);
     };
 
+    const addAssetsToSession = (assetsToAdd: Asset[]) => {
+        setSessionAssets(prev => [...assetsToAdd, ...prev]);
+    };
+
     // --- Project Management ---
     const handleCreateProject = (name: string) => {
         const newProject: Project = { id: Date.now().toString(), name, assets: [] };
@@ -219,7 +289,7 @@ const App: React.FC = () => {
                 <PromptForm onGenerate={handleGenerate} isLoading={isLoading} initialOptions={editAsset?.options} />
                 {editAsset && <button onClick={() => setEditAsset(null)} className="text-purple-400 mt-2 text-sm hover:underline">Clear form</button>}
                 
-                {isLoading && !generationPreview && <Loader />}
+                {isLoading && !generationPreview && <Loader message={generationProgress.total > 0 ? `Generating set... (${generationProgress.current}/${generationProgress.total})` : undefined} />}
                 {error && <div className="mt-4 p-4 bg-red-900/50 text-red-300 border border-red-700 rounded-md">{error}</div>}
 
                 <AssetGrid
@@ -259,7 +329,7 @@ const App: React.FC = () => {
                 selectionCount={selectedAssets.size}
                 onClearSelection={() => setSelectedAssets(new Set())}
                 onExport={handleExport}
-                onCreateSpriteSheet={() => setSpriteSheetEditorOpen(true)}
+                onCreateSpriteSheet={handleCreateSpriteSheet}
                 onDelete={() => setDeleteConfirm({ assets: Array.from(selectedAssets) })}
             />
 
@@ -267,7 +337,7 @@ const App: React.FC = () => {
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setSettingsOpen(false)} currentSettings={settings} onSave={handleSaveSettings} />
             {previewAsset && <PreviewModal asset={previewAsset} onClose={() => setPreviewAsset(null)} />}
             {inpaintAsset && <InpaintingEditor asset={inpaintAsset} onClose={() => setInpaintAsset(null)} onSubmit={handleInpaint} isLoading={isLoading} />}
-            {isSpriteSheetEditorOpen && <SpriteSheetEditor assets={[...sessionAssets, ...libraryAssets].filter(a => selectedAssets.has(a.id))} onClose={() => setSpriteSheetEditorOpen(false)} />}
+            {isSpriteSheetEditorOpen && <SpriteSheetEditor assets={spriteSheetEditorAssets} onClose={() => setSpriteSheetEditorOpen(false)} onAddAssetsToSession={addAssetsToSession} />}
             {generationPreview && <GenerationPreviewModal asset={generationPreview} onAccept={acceptAndSaveGeneration} onDiscard={() => setGenerationPreview(null)} />}
             {deleteConfirm && (
                 <Modal 

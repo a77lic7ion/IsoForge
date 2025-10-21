@@ -1,5 +1,5 @@
 export type GenerationProvider = 'gemini' | 'comfyui';
-export type GenerationType = 'asset' | 'background';
+export type GenerationType = 'asset' | 'background' | 'iso-set';
 export type ViewOption = 'isometric' | 'iso-n' | 'iso-ne' | 'iso-e' | 'iso-se' | 'iso-s' | 'iso-sw' | 'iso-w' | 'iso-nw' | 'top-down' | 'front' | 'side';
 export type StyleOption = 'none' | 'illustration' | 'vector' | 'cartoon' | 'hd' | 'outline' | 'b&w';
 

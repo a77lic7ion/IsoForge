@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { GenerationOptions, GenerationType, ViewOption, StyleOption } from '../types';
 
 interface PromptFormProps {
@@ -10,11 +10,20 @@ interface PromptFormProps {
 const GenerateIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>);
 
 export const PromptForm: React.FC<PromptFormProps> = ({ onGenerate, isLoading, initialOptions }) => {
-  const [prompt, setPrompt] = useState(initialOptions?.prompt || '');
-  const [genType, setGenType] = useState<GenerationType>(initialOptions?.genType || 'asset');
-  const [view, setView] = useState<ViewOption>(initialOptions?.view || 'isometric');
-  const [style, setStyle] = useState<StyleOption>(initialOptions?.style || 'illustration');
+  const [prompt, setPrompt] = useState('');
+  const [genType, setGenType] = useState<GenerationType>('asset');
+  const [view, setView] = useState<ViewOption>('isometric');
+  const [style, setStyle] = useState<StyleOption>('illustration');
   
+  useEffect(() => {
+    if (initialOptions) {
+        setPrompt(initialOptions.prompt || '');
+        setGenType(initialOptions.genType || 'asset');
+        setView(initialOptions.view || 'isometric');
+        setStyle(initialOptions.style || 'illustration');
+    }
+  }, [initialOptions]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (prompt.trim()) {
@@ -22,7 +31,7 @@ export const PromptForm: React.FC<PromptFormProps> = ({ onGenerate, isLoading, i
     }
   };
 
-  const RadioButton = ({ id, value, label }: { id: GenerationType, value: GenerationType, label: string }) => (
+  const RadioButton = ({ id, value, label }: { id: string, value: GenerationType, label: string }) => (
     <div>
         <input
             type="radio"
@@ -42,10 +51,10 @@ export const PromptForm: React.FC<PromptFormProps> = ({ onGenerate, isLoading, i
     </div>
   );
   
-  const Select = ({ label, value, onChange, children }: { label: string, value: string, onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void, children: React.ReactNode }) => (
+  const Select = ({ label, value, onChange, children, disabled }: { label: string, value: string, onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void, children: React.ReactNode, disabled?: boolean }) => (
     <div>
         <label className="block text-sm font-medium text-gray-400 mb-2">{label}</label>
-        <select value={value} onChange={onChange} className="w-full bg-gray-700 text-gray-200 px-4 py-3 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 border-transparent transition-all">
+        <select value={value} onChange={onChange} disabled={disabled} className="w-full bg-gray-700 text-gray-200 px-4 py-3 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 border-transparent transition-all disabled:bg-gray-800 disabled:cursor-not-allowed">
             {children}
         </select>
     </div>
@@ -68,13 +77,14 @@ export const PromptForm: React.FC<PromptFormProps> = ({ onGenerate, isLoading, i
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div>
           <label className="block text-sm font-medium text-gray-400 mb-2">Type</label>
-          <div className="grid grid-cols-2 gap-2">
-            <RadioButton id="asset" value="asset" label="Object/Sprite" />
-            <RadioButton id="background" value="background" label="Tile/Texture" />
+          <div className="grid grid-cols-1 gap-2">
+            <RadioButton id="asset" value="asset" label="Single Asset" />
+            <RadioButton id="background" value="background" label="Background/Tile" />
+            <RadioButton id="iso-set" value="iso-set" label="Isometric Set (8 Views)" />
           </div>
         </div>
         
-        <Select label="View" value={view} onChange={(e) => setView(e.target.value as ViewOption)}>
+        <Select label="View / Angle" value={view} onChange={(e) => setView(e.target.value as ViewOption)} disabled={genType === 'iso-set'}>
             <option value="isometric">Isometric</option>
             <option value="iso-n">Isometric (North)</option>
             <option value="iso-ne">Isometric (North-East)</option>
@@ -106,7 +116,7 @@ export const PromptForm: React.FC<PromptFormProps> = ({ onGenerate, isLoading, i
         className="w-full flex items-center justify-center px-6 py-3 bg-purple-600 text-white font-semibold rounded-md hover:bg-purple-500 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors duration-300"
       >
         <GenerateIcon />
-        {isLoading ? 'Generating...' : 'Generate Asset'}
+        {isLoading ? 'Generating...' : 'Generate'}
       </button>
     </form>
   );

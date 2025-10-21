@@ -5,21 +5,24 @@ import { exportSpriteSheetForGodot } from '../services/godotExportService';
 interface SpriteSheetEditorProps {
   assets: Asset[];
   onClose: () => void;
+  onAddAssetsToSession?: (assets: Asset[]) => void;
 }
 
-export const SpriteSheetEditor: React.FC<SpriteSheetEditorProps> = ({ assets, onClose }) => {
+export const SpriteSheetEditor: React.FC<SpriteSheetEditorProps> = ({ assets, onClose, onAddAssetsToSession }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [columns, setColumns] = useState(Math.ceil(Math.sqrt(assets.length)));
+  const [columns, setColumns] = useState(assets.length > 4 ? 4 : assets.length);
   const [padding, setPadding] = useState(0);
   const [filename, setFilename] = useState('spritesheet');
+  const [added, setAdded] = useState(false);
 
   const drawSpriteSheet = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || assets.length === 0) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const rows = Math.ceil(assets.length / columns);
+    const validColumns = Math.max(1, columns);
+    const rows = Math.ceil(assets.length / validColumns);
     const images: HTMLImageElement[] = [];
     let loadedImages = 0;
     let maxW = 0, maxH = 0;
@@ -33,13 +36,13 @@ export const SpriteSheetEditor: React.FC<SpriteSheetEditorProps> = ({ assets, on
         maxH = Math.max(maxH, img.height);
         loadedImages++;
         if (loadedImages === assets.length) {
-          canvas.width = columns * maxW + (columns - 1) * padding;
+          canvas.width = validColumns * maxW + (validColumns - 1) * padding;
           canvas.height = rows * maxH + (rows - 1) * padding;
           ctx.clearRect(0, 0, canvas.width, canvas.height);
 
           images.forEach((image, index) => {
-            const col = index % columns;
-            const row = Math.floor(index / columns);
+            const col = index % validColumns;
+            const row = Math.floor(index / validColumns);
             const x = col * (maxW + padding);
             const y = row * (maxH + padding);
             ctx.drawImage(image, x, y);
@@ -52,11 +55,18 @@ export const SpriteSheetEditor: React.FC<SpriteSheetEditorProps> = ({ assets, on
   useEffect(() => {
     drawSpriteSheet();
   }, [drawSpriteSheet]);
+  
+  const handleAddToSession = () => {
+    if (onAddAssetsToSession) {
+        onAddAssetsToSession(assets);
+        setAdded(true);
+    }
+  }
 
   const handleExport = () => {
     const canvas = canvasRef.current;
     if (canvas) {
-      exportSpriteSheetForGodot(canvas, filename, columns, Math.ceil(assets.length / columns));
+      exportSpriteSheetForGodot(canvas, filename, Math.max(1, columns), Math.ceil(assets.length / Math.max(1, columns)));
     }
   };
 
@@ -90,6 +100,19 @@ export const SpriteSheetEditor: React.FC<SpriteSheetEditorProps> = ({ assets, on
                 <h3 className="text-lg font-semibold mb-2 text-gray-200">Layout</h3>
                 <Input label="Columns" type="number" min="1" max={assets.length} value={columns} onChange={(e) => setColumns(Number(e.target.value))} />
                 <Input label="Padding (px)" type="number" min="0" value={padding} onChange={(e) => setPadding(Number(e.target.value))} />
+
+                {onAddAssetsToSession && (
+                    <>
+                    <div className="flex-grow"></div>
+                    <button
+                        onClick={handleAddToSession}
+                        disabled={added}
+                        className="w-full flex items-center justify-center px-6 py-3 bg-gray-600 text-white font-semibold rounded-md hover:bg-gray-500 disabled:bg-green-600 disabled:cursor-not-allowed transition-colors"
+                    >
+                        {added ? 'Added!' : 'Add All to Session'}
+                    </button>
+                    </>
+                )}
 
                 <div className="flex-grow"></div>
                 
